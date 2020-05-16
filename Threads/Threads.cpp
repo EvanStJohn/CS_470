@@ -16,24 +16,23 @@ int main(int argc, char* argv[])
 {
     vector<int> nums = {5, 1, 6, 7, 8, 2};
 
-    bubbleSort(nums);
+    quickSort(nums, 0, nums.size()-1);
     
     for (int i = 0; i < nums.size(); i++)
     {
         cout << nums.at(i) << endl;
     }
-    
 }
 
 void bubbleSort(vector<int> &nums)
 {
     for (int i = 0; i < nums.size(); i++)
     {
-        for (int j = 0; j < nums.size()-i-1; i++)
+        for (int j = 0; j < nums.size()-i-1; j++)
         {
-            if (nums.at(i) > nums.at(i+1))
+            if (nums.at(j) > nums.at(j+1))
             {
-                iter_swap(nums.begin() + j, nums.begin() + j - 1);
+                iter_swap(nums.begin() + j, nums.begin() + j + 1);
             }
         }
     }
@@ -48,22 +47,34 @@ void swap(int &a,int &b)
 
 void insertionSort(vector<int> &nums)
 {
-    for (int i = 0; i < nums.size(); i++)
+    for (int i = 1; i < nums.size(); i++)
     {
         int j = i;
 
-        while (nums.at(j-1) > nums.at(j) && j > 0)
+        while (j > 0)
         {
-            iter_swap(nums.begin() + j, nums.begin() + j - 1);
+            if (nums.at(j-1) > nums.at(j))
+            {
+                iter_swap(nums.begin() + j, nums.begin() + j - 1);
+                j--;
+            }
+            else
+            {
+                break;
+            }
         }
     }
 }
 
 void quickSort(vector<int> &nums, int low, int high)
 {
-    int pivot = partition(nums, low, high);
-    quickSort(nums, low, pivot - 1);
-    quickSort(nums, pivot + 1, high);
+    if (low < high)
+    {
+        int pivot = partition(nums, low, high);
+        quickSort(nums, low, pivot - 1);
+        quickSort(nums, pivot + 1, high);
+    }
+    
 }
 
 int partition(std::vector<int> &nums, int low, int high)
