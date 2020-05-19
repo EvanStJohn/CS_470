@@ -1,30 +1,79 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <time.h>
+#include <atomic>
+#include <pthread.h>
+#include <unistd.h>
 using namespace std;
 
 void bubbleSort(vector<int> &nums);
 void insertionSort(vector<int> &nums);
 void quickSort(vector<int> &nums, int low, int high);
 int partition(std::vector<int> &nums, int low, int high);
+int getRandom(int low, int high);
 vector<int> readNums(int start, int end);
 void writeNums(vector<int> &nums, int index, int size);
-void createFile();
-void checkSorted();
-void threadSort(int size);
+void *threadCheck(void *threadId);
+void *threadSort(void *threadId);
 void threadmanager();
+
+atomic<int> mtx;
+atomic<bool> sorted;
+atomic<bool> check;
+int size;
+int threadCount;
 
 
 int main(int argc, char* argv[])
 {
-    vector<int> test = {1, 2, 3};
-    writeNums(test, 2, 7);
+    // validate command line input
+    size = 10;
 
-    vector<int> nums = readNums(0, 6);
-    for (int i = 0; i < nums.size(); i++)
+    // ask for thread count and validate
+    threadCount = 5;
+
+    // fill file with random numbers
+    srand(time(NULL));
+    fstream file("Sorted.txt", fstream::out);
+    for (int i = 0; i < size; i++)
     {
-        cout << nums.at(i) << endl;
+        file << getRandom(1, 999) << "\t";
     }
+    file.close();
+
+    // create threads
+    mtx = 1;
+    sorted = false;
+    check = true;
+
+    pthread_t threads[threadCount];
+    for (int i = 0; i < threadCount; i++)
+    {
+        int val;
+        if (i == 0)
+        {
+            val = pthread_create(&threads[i], NULL, threadCheck, (void*) (long) i);
+        }
+        else
+        {
+            val = pthread_create(&threads[i], NULL, threadSort, (void*) (long) i);
+        }
+
+        if (val)
+        {
+            cout << "Unable to create thread " << val << endl;
+            exit(-1);
+        }
+    }
+
+    // join threads
+    for (int i = 0; i < threadCount; i++)
+    {
+        pthread_join(threads[i], NULL);
+    }
+
+    return 0;
 }
 
 void bubbleSort(vector<int> &nums)
@@ -87,7 +136,12 @@ int partition(std::vector<int> &nums, int low, int high)
     return i+1;
 }
 
-void writeNums(vector<int> &nums, int index, int size)
+int getRandom(int low, int high)
+{
+    return low + rand() % ((high + 1) - low);
+}
+
+void writeNums(vector<int> &nums, int index)
 {
     vector<int> array = readNums(0, size - 1);
     fstream file("Sorted.txt", fstream::out);
@@ -101,6 +155,7 @@ void writeNums(vector<int> &nums, int index, int size)
     {
         file << array.at(i) << "\t";
     }
+
     file.close();
 }
 
@@ -108,7 +163,7 @@ vector<int> readNums(int start, int end)
 {
     ifstream file("Sorted.txt");
     vector<int> array;
-    
+
     if (file.is_open())
     {
         int num;
@@ -120,19 +175,90 @@ vector<int> readNums(int start, int end)
 
         file.close();
     }
-
     vector<int> result(array.begin() + start, array.begin() + end + 1);
 
     return result;
 }
 
-void threadSort(int size)
+void *threadCheck(void *threadId)
 {
-    // create random i and j
+    while (!sorted)
+    {
+        if (check)
+        {
+            cout << "checking" << endl;
+            vector<int> nums = readNums(0, size);
+            int count = 0;
 
-    // read subarray
+            if (nums.size() == 1)
+            {
+                sorted = true;
+            }
+            else
+            {
+                for (int i = 1; i < nums.size(); i++)
+                {
+                    if (nums.at(i) > nums.at(i-1))
+                    {
+                        count++;
+                    }
+                }
 
-    // choosing a random sortin algorithm
+                if (count == size)
+                {
+                    sorted = true;
+                }
+            }
+            check = false;
+        }
+    }
 
-    // write numbers back to file
+    return (void*)0;
 }
+
+void *threadSort(void *threadId)
+{
+    int id = (int) (long) threadId;
+
+    while (!sorted)
+    {
+        if (mtx == id)
+        {
+            int i = getRandom(0, size - 2);
+            int j = getRandom(i + 1, size - 1);
+            cout << i << " " << j << endl;
+
+            vector<int> nums = readNums(i, j);
+
+            switch (getRandom(0, 2))
+            {
+                case 0:
+                    insertionSort(nums);
+                    break;
+                case 1:
+                    insertionSort(nums);
+                    break;
+                case 2:
+                    bubbleSort(nums);
+                    break;
+                default:
+                    break;
+            }
+
+            writeNums(nums, i);
+
+            if (mtx == threadCount - 1)
+            {
+                mtx = 1;
+            }
+            else
+            {
+                mtx++;
+            }
+            check = true;
+        }
+    }
+
+    return (void*)0;
+}
+
