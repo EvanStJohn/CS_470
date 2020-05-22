@@ -5,7 +5,6 @@
 #include <atomic>
 #include <pthread.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <sys/file.h>
 using namespace std;
 
@@ -43,7 +42,7 @@ int main(int argc, char* argv[])
     {
         cout << "You need to provide an integer value that is greater than 1 to start sorting" << endl;
     }
-    
+
     return 0;
 }
 
@@ -72,7 +71,7 @@ void threadLauncher()
     sorted = false;
     check = true;
     int threadCount = 0;
-    
+
     cout << "How many threads do you want to sort the file?" << endl;
     cin >> threadCount;
     while (cin.fail() || threadCount < 1)
@@ -93,9 +92,9 @@ void threadLauncher()
     file.close();
 
     string str;
-    vector<int> nums = readNums(0, size);
+    vector<int> nums = readNums(0, size - 1);
     cout << "File before sorting:" << endl;
-    for (int i = 0; i < nums.size(); i++) 
+    for (int i = 0; i < nums.size(); i++)
     {
         if (i == nums.size() - 1)
         {
@@ -107,7 +106,7 @@ void threadLauncher()
         }
     }
     cout << str << endl;
-    
+
     pthread_t threads[threadCount];
     for (int i = 0; i < threadCount; i++)
     {
@@ -134,10 +133,10 @@ void threadLauncher()
         pthread_join(threads[i], NULL);
     }
 
-    nums = readNums(0, size);
+    nums = readNums(0, size - 1);
     str = "";
     cout << "File after sorting:" << endl;
-    for (int i = 0; i < nums.size(); i++) 
+    for (int i = 0; i < nums.size(); i++)
     {
         if (i == nums.size() - 1)
         {
@@ -306,55 +305,57 @@ void *threadSort(void *threadId)
 
     while (!sorted)
     {
-        int i = getRandom(0, size - 2);
-        int j = getRandom(i + 1, size - 1);
-
-        // lock the file
-        int fd;
-        fd = open("Sorted.txt", O_RDWR);
-        flock(fd, LOCK_EX);
-
-        vector<int> nums = readNums(i, j);
-
-        string method;
-        switch (getRandom(0, 2))
+        if (!check)
         {
-            case 0:
-                quickSort(nums, 0, nums.size() - 1);
-                method = "QuickSort";
-                break;
-            case 1:
-                insertionSort(nums);
-                method = "Insertion Sort";
-                break;
-            case 2:
-                bubbleSort(nums);
-                method = "Bubble Sort";
-                break;
-            default:
-                break;
-        }
+            int i = getRandom(0, size - 2);
+            int j = getRandom(i + 1, size - 1);
 
-        writeNums(nums, i);
+            // lock the file
+            int fd;
+            fd = open("Sorted.txt", O_RDWR);
+            flock(fd, LOCK_EX);
 
-        string output = "Thread " + to_string(id) + " used " + method + " on "  + to_string(i) + " - " + to_string(j) + ":\n";
-        for (int i = 0; i < nums.size(); i++) {
-            if (i == nums.size() - 1)
+            vector<int> nums = readNums(i, j);
+
+            string method;
+            switch (getRandom(0, 2))
             {
-                output.append(to_string(nums[i]) + "\n");
+                case 0:
+                    quickSort(nums, 0, nums.size() - 1);
+                    method = "QuickSort";
+                    break;
+                case 1:
+                    insertionSort(nums);
+                    method = "Insertion Sort";
+                    break;
+                case 2:
+                    bubbleSort(nums);
+                    method = "Bubble Sort";
+                    break;
+                default:
+                    break;
             }
-            else
-            {
-                output.append(to_string(nums[i]) + ", ");
-            }
-        }
-        cout << output << endl;
 
-        //unlock file
-        flock(fd, LOCK_UN);
-        close(fd);
-        check = true;
-        sleep(.01);
+            writeNums(nums, i);
+
+            string output = "Thread " + to_string(id) + " used " + method + " on "  + to_string(i) + " - " + to_string(j) + ":\n";
+            for (int i = 0; i < nums.size(); i++) {
+                if (i == nums.size() - 1)
+                {
+                    output.append(to_string(nums[i]) + "\n");
+                }
+                else
+                {
+                    output.append(to_string(nums[i]) + ", ");
+                }
+            }
+            cout << output << endl;
+
+            //unlock file
+            flock(fd, LOCK_UN);
+            close(fd);
+            check = true;
+        }
     }
 
     return (void*)0;
