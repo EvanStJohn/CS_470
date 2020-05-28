@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
 
 using namespace std;
 
@@ -13,22 +14,42 @@ struct process {
    char priority;
 };
 
-process readProcess(int index);
-void writeProcess(int index, process data);
+process readProcess(int index, char* path);
+void writeProcess(int index, process data, char* path);
 void printProcess(process data);
-void priority();
-bool roundRobin(int size);
-void runScheduler();
-int getSize();
+bool priority(int size, char* path);
+char getHighestPriority(int size, char* path);
+void ageProcesses(int size, char* path);
+int getSize(char* path);
+bool roundRobin(int size, char* path);
+void runScheduler(char* path);
+bool validateFile(char* path);
 
-int main()
-{
-   runScheduler();
+int main(int argc, char* argv[])
+{ 
+   if (argc < 2)
+   {
+      cout << "You need to Provide a file to execute the program" << endl;
+   }
+   else if (argc > 2)
+   {
+      cout << "You have provided too many parameters" << endl;
+   }
+   else if (validateFile(argv[1]))
+   {
+      runScheduler(argv[1]);
+   }
+   else
+   {
+      cout << "This file does not exist" << endl;
+   }
+   
+   return 0; 
 }
 
-process readProcess(int index)
+process readProcess(int index, char* path)
 {
-   ifstream file("processes.bin", ios::in | ios::binary);
+   ifstream file(path, ios::in | ios::binary);
    process data;
 
    if (file.is_open())
@@ -43,25 +64,15 @@ process readProcess(int index)
       file.read(reinterpret_cast<char *> (&data.limitRegister), 8);
       file.read(reinterpret_cast<char *> (&data.priority), 1);
 
-      int test = (int) data.activityStatus;
-      int test2 = (int) data.priority;
-      cout << data.name << endl;
-      cout << data.id << endl;
-      cout << test << endl;
-      cout << data.burst << endl;
-      cout << data.baseRegister << endl;
-      cout << data.limitRegister << endl;
-      cout << test2 << endl << endl;
-
       file.close();
    }
    
    return data;
 }
 
-void writeProcess(int index, process data)
+void writeProcess(int index, process data, char* path)
 {
-   ofstream file("processes.bin", ios::out | ios::binary | ios::in);
+   ofstream file(path, ios::out | ios::binary | ios::in);
 
    if (file.is_open())
    {
@@ -81,15 +92,22 @@ void writeProcess(int index, process data)
 
 void printProcess(process data)
 {
+   int activity = (int) data.activityStatus;
+   int priority = (int) data.priority;
 
+   cout << "Name:" << data.name << endl;
+   cout << "Id:" << data.id << endl;
+   cout << "Activity status:" << activity << endl;
+   cout << "Burst Time:" << data.burst << endl;
+   cout << "Base Register:" << data.baseRegister << endl;
+   cout << "Limit Register:" << data.limitRegister << endl;
+   cout << "Priority:" << priority << endl;
 }
 
-void runScheduler()
+void runScheduler(char* path)
 {
    bool finished = false;
-   int size = 100;
-
-   // get amount of processes and file size
+   int size = getSize(path);
 
    while (!finished)
    {
@@ -97,47 +115,58 @@ void runScheduler()
       {
          if (i == 0)
          {
-            finished = roundRobin(size);
+            cout << "\nStarting Round Robin algorithm" << endl;
+            finished = roundRobin(size, path);
          }
          else
          {
-            //priority();
-            finished = roundRobin(size);
+            cout << "\nStarting Priority algorithm" << endl;
+            finished = priority(size, path);
          }
 
-         // check if finished
+         if (finished)
+         {
+            break;
+         }
       }
    }
+   cout << "\nAll processes have been executed" << endl;
 }
 
-bool roundRobin(int size)
+bool roundRobin(int size, char* path)
 {
    int quantum = 0;
-   int count = 0;
+   int completionCount = 0;
 
-   while (quantum < 30 && count != size)
+   while (quantum < 30 && completionCount != size)
    {
-      count = 0;
+      completionCount = 0;
 
       for (int i = 0; i < size; i++)
       {
-         process data = readProcess(i);
+         process data = readProcess(i, path);
 
          if (data.burst > 0)
          {
             data.burst--;
             quantum++;
-            cout << "executing process at position " << i << endl;
+            cout << "\nexecuting process at position " << i << endl;
             printProcess(data);
-            writeProcess(i, data);
-            // sleep
+            writeProcess(i, data, path);
+
+            if (data.burst == 0)
+            {
+               cout << "Process has finished" << endl;
+            }
+
+            //usleep(500000);
          }
          else
          {
-            count++;
+            completionCount++;
          }
          
-         if (count == size)
+         if (completionCount == size)
          {
             return true;
          }
@@ -150,3 +179,123 @@ bool roundRobin(int size)
    }
    return false;
 }
+
+bool priority(int size, char* path)
+{
+   int quantum = 0;
+   int completionCount = 0;
+   int ageCount = 0;
+
+   while (quantum < 30 && completionCount != size)
+   {
+      int highestPriority = getHighestPriority(size, path);
+      completionCount = 0;
+
+      for (int i = 0; i < size; i++)
+      {
+         process data = readProcess(i, path);
+
+         if (data.burst > 0)
+         {
+            if (data.priority == highestPriority)
+            {
+               data.burst--;
+               quantum++;
+               ageCount++;
+               cout << "\nexecuting process at position " << i << endl;
+               printProcess(data);
+               writeProcess(i, data, path);
+
+               if (data.burst == 0)
+               {
+                  cout << "Process has finished" << endl;
+               }
+
+               if (ageCount == 2)
+               {
+                  cout << "Aging processes by 1" << endl;
+                  ageProcesses(size, path);
+                  ageCount = 0;
+               }         
+
+               //usleep(500000);
+            }
+         }
+         else
+         {
+            completionCount++;
+         }
+         
+         if (completionCount == size)
+         {
+            return true;
+         }
+         
+         if (quantum == 30)
+         {
+            break;
+         }
+      }
+   }
+   return false;
+}
+
+char getHighestPriority(int size, char* path)
+{
+   char min = INT8_MAX;
+
+   for (int i = 0; i < size; i++)
+   {
+      process data = readProcess(i, path);
+
+      if (data.priority < min && data.burst != 0)
+      {
+         min = data.priority;
+      } 
+   }
+   return min;
+}
+
+void ageProcesses(int size, char* path)
+{
+   for (int i = 0; i < size; i++)
+   {
+      process data = readProcess(i, path);
+
+      if (data.priority > 0)
+      {
+         data.priority--;
+      }
+      
+      writeProcess(i, data, path);
+   }
+}
+
+int getSize(char* path)
+{
+   int fileSize;
+   int processes;
+
+   ifstream file(path, ios::in | ios::binary);
+
+   if (file.is_open())
+   {
+      file.seekg(0, ios::end);
+      fileSize = file.tellg();
+      file.close();
+   }
+
+   processes = fileSize / 38;
+
+   cout << "This file contains " << processes << " processes" << endl;
+   cout << "which is a total of " << fileSize << " bytes\n" << endl;
+
+   return processes;
+}
+
+bool validateFile(char* path)
+{
+   ifstream file(path);
+   return (bool)file;
+}
+
